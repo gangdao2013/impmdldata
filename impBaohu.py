@@ -39,8 +39,7 @@ class BaoHu:
                                 flds = line.split(',')
                                 errFmt = ''
                                 if len(flds) != len(fldNames):
-                                        bErrFmt = True
-                                        errFmt = '%s - %s'%(len(flds), count)
+                                        errFmt = 'Bad format: %s != %s, line:%s'%(len(flds),len(fldNames), count)
                                         if len(flds) < len(fldNames): # 名字中有换行符导致
                                                 count += 1
                                                 breakLine = f.readline().replace('\n', '')
@@ -48,9 +47,7 @@ class BaoHu:
                                                         line += breakLine
                                                         flds = line.split(',')
                                         else: # 名字中有','导致
-                                                nameLast = len(flds)- (len(fldNames)-mzNo-1)
-                                                name = flds[mzNo : nameLast]
-                                                flds = flds[:mzNo] + [','.join(name)] + flds[nameLast:]
+                                                flds = self.modiFlds(fldNames, flds, mzNo)
                                 if len(errFmt)>0 and len(flds) != len(fldNames):
                                                 print(errFmt + '--------------err------------------')
                                                 
@@ -80,12 +77,18 @@ class BaoHu:
                         bjlxNo = fldNames.index('BJTYPE')
                         bjidNo = fldNames.index('BJID')
                         rdfNo = fldNames.index('GISRDFID')
+                        gismridNo = fldNames.index('GISMRID')
                                  
                         line = f.readline().replace('\n', '')
                         while line:
                                 flds = line.split(',')
+                                errFmt = ''
                                 if len(flds) != len(fldNames):
-                                        print('%s - %s'%(len(flds), count))
+                                        errFmt = 'Bad format: %s != %s, line:%s'%(len(flds),len(fldNames), count)
+                                        if len(flds) > len(fldNames): # GISMRID中有','导致
+                                                flds = self.modiFlds(fldNames, flds, gismridNo)
+                                if len(errFmt)>0 and len(flds) != len(fldNames):
+                                                print(errFmt + '--------------err------------------')
 
                                 bjlx = int(flds[bjlxNo])
                                 if bjlx in bjlxAll:
@@ -93,7 +96,7 @@ class BaoHu:
                                         self._id_rdf[self.makeId(bjlx, bjid)] = flds[rdfNo]
                                 
                                 line = f.readline().replace('\n', '')
-                                #count += 1
+                                count += 1
                                 #if count>100:
                                 #        break
                         
@@ -127,7 +130,7 @@ class BaoHu:
                 self.lib.beginWrite(self.context.encode(), self.app.encode(), tab.encode())
                 for flds in self._baohus:
                         if len(flds) != len(fldNames):
-                                print('%s - %s'%(len(flds), count))
+                                print('Bad format: %s != %s, line:%s'%(len(flds),len(fldNames), count))
                                                                 
                         devResId = 0
                         staResId = 0
@@ -258,7 +261,7 @@ class BaoHu:
                 return bjlx<<48 & 0xFFFF000000000000 | bjid
 
         # 读取目标库的rdf
-        def getTarModelId(self):
+        def getTarRdf(self):
                 print('读取目标库rdf')
                 idNo = 0 # 设备ID
                 rdfNo = 1 # GIS资源编码
@@ -273,7 +276,7 @@ class BaoHu:
                         while line:
                                 flds = line.split('\t')
                                 if len(flds) != len(fldNames):
-                                        print('%s - %s'%(len(flds), count))
+                                        print('Bad format: %s != %s, line:%s'%(len(flds),len(fldNames), count))
 
                                 id = int(flds[idNo])
                                 rdf = flds[rdfNo]
@@ -285,13 +288,18 @@ class BaoHu:
                         
                         f.close()
 
+        # 数据字段和字段模式个数不匹配的纠正
+        def modiFlds(self, fldNames, flds, badFldNo):
+                badLast = len(flds)- (len(fldNames) - badFldNo - 1)
+                content = flds[badFldNo : badLast]
+                return flds[:badFldNo] + [','.join(content)] + flds[badLast:]
+
         
 if __name__ == '__main__':
         b = BaoHu()
         b.prepare()
-        if True:
-                b.getTarModelId()
-                b.getRdf()
-                b.crtProtSig()
-                b.writeProtEquip()
+        b.getTarRdf()
+        b.getRdf()
+        b.crtProtSig()
+        b.writeProtEquip()
 
