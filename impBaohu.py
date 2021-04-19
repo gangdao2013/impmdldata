@@ -292,7 +292,7 @@ class BaoHu:
         def modiFlds(self, fldNames, flds, badFldNo):
                 badLast = len(flds)- (len(fldNames) - badFldNo - 1)
                 content = flds[badFldNo : badLast]
-                return flds[:badFldNo] + [','.join(content)] + flds[badLast:]
+                return flds[:badFldNo] + [u'、'.join(content)] + flds[badLast:]
 
         
 if __name__ == '__main__':
