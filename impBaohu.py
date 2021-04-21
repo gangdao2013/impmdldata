@@ -110,8 +110,8 @@ class BaoHu:
         def crtProtSig(self):
                 print('写入保护信号')
                 tab = 'ProtectionSignal_B'
-                fldMap = {2:'MINGZI', 3:'BIANHAO', 4:'ID', 15:'GZFLAG', 16:'ALARMLEVEL', 12:'DELAYTIME'} # 800 - 1000e
-                pstMap = {2:13, 3:14, 253:15, 254:16} # 1000e - 800 ProtectionSignalType
+                fldMap = {2:'MINGZI', 3:'BIANHAO', 4:'ID', 12:'DELAYTIME', 15:'GZFLAG', 16:'ALARMLEVEL'} # 800 - 1000e
+                pstMap = {1:1, 2:13, 3:14, 253:15, 254:16} # 1000e - 800 ProtectionSignalType
                 tarFldNos = range(1, 26)
                 line = ''
                 with codecs.open('baohu.csv', 'r') as f:
@@ -122,6 +122,7 @@ class BaoHu:
                 bjidNo = fldNames.index('BUJIANID')
                 feedNo = fldNames.index('FEEDERID')
                 czidNo = fldNames.index('CHANGZHANID')
+                bhlxNo = fldNames.index('BAOHULEIXINGID')
                 for i in fldMap:
                         fldMap[i] = fldNames.index(fldMap[i])
 
@@ -224,10 +225,12 @@ class BaoHu:
                                                 record += ',%s'%(protEquipId)
                                         elif i == 13: # ProtectionSignalType
                                                 tarSigType = 0
-                                                sigType = int(flds[bjlxNo])
+                                                sigType = int(flds[bhlxNo])
                                                 if sigType in pstMap:
                                                         tarSigType = pstMap[sigType]
                                                 record += ',%s'%(tarSigType)
+                                        elif i in (14, 17, 18, 19): # 14-ShowConditionEvent 17-ProtectionCatagory 18-EnableConditionEvent 19-EnableControl
+                                                record += ',1'
                                         elif i == 21: # Feeder_ID
                                                 record += ',%s' % (feedResId)
                                         elif i == 25: # DistributeStation_ID
