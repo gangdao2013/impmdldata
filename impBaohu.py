@@ -1,5 +1,6 @@
 #-*- coding: utf-8 -*-  
 import codecs, sys, ctypes, platform, os
+import re
 from collections import OrderedDict
 
 # 导入保护信号
@@ -182,14 +183,16 @@ class BaoHu:
                                         houseResId = staResId
                                         staResId = 0
 
-                                pathname = ''
+                                name = pathname = ''
                                 if devResId in self._devInfo:
                                         feedResId = self._devInfo[devResId][0]
                                 if feedResId in self._feednames:
                                         (staResId, sta, feed) = self._feednames[feedResId]
-                                        pathname = '%s.%s.%s' % (''.join(sta), feed, flds[fldMap[2]])
+                                        (name, pathname) = self.delDup(sta, feed, flds[fldMap[2]])
+                                        #pathname = '%s.%s.%s' % (''.join(sta), feed, flds[fldMap[2]])
                                 elif staResId in self._stanames:
-                                        pathname = '%s.%s' % (''.join(self._stanames[staResId]), flds[fldMap[2]])
+                                        (name, pathname) = self.delDup(sta, '', flds[fldMap[2]])
+                                        #pathname = '%s.%s' % (''.join(self._stanames[staResId]), flds[fldMap[2]])
                                 else:
                                         pathname = '%s' % (flds[fldMap[2]])
 
@@ -397,6 +400,36 @@ class BaoHu:
                 badLast = len(flds)- (len(fldNames) - badFldNo - 1)
                 content = flds[badFldNo : badLast]
                 return flds[:badFldNo] + [u'、'.join(content)] + flds[badLast:]
+
+        # 去重
+        def delDup(self, sta, feed, name):
+                pathname = ''
+                pattern = re.compile(r'\d+')
+                sections = name.split('/')
+                if len(sections) > 2:
+                        tmp1 = sections[0]
+                        if u'福州.' in tmp1:
+                                tmp1 = tmp1.replace(u'福州.', '', 1)
+                        if tmp1 in sta:
+                                sections.pop(0)
+                                tmp1 = sections[0]
+                                if 'kV' in tmp1 and len(feed) > 0:
+                                        tmp1 = tmp1[tmp1.index('kV')+2:]
+                                        tmp1 = tmp1.replace('.', '')
+                                        r = pattern.findall(tmp1)
+                                        for i in r:
+                                                if i in feed:
+                                                        tmp1 = tmp1.replace(i, '', 1)
+                                        for ii in (u'线回路'):
+                                                tmp1 = tmp1.replace(ii, '')
+                                        if tmp1 in feed:
+                                                sections.pop(0)
+                modiname = '/'.join(sections)
+                if len(feed) > 0:
+                        pathname = '%s.%s.%s' % (''.join(sta), feed, modiname)
+                else:
+                        pathname = '%s.%s' % (''.join(sta), modiname)
+                return modiname, pathname
 
         
 if __name__ == '__main__':
