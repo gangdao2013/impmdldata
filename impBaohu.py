@@ -2,6 +2,7 @@
 import codecs, sys, ctypes, platform, os
 import re
 from collections import OrderedDict
+from time import ctime
 
 # 导入保护信号
 class BaoHu:
@@ -14,7 +15,6 @@ class BaoHu:
                 self._feednames = {} # 馈线id-名
                 self._devInfo = {} # 设备id-名
                 self._tarRdf_id = {} # 目标库的rdf-id
-                self._baohus = [] # 新创建保护设备
                 self._protEquips = [] # 新创建保护设备
 
                 for i in os.environ.get('path').split(';'):
@@ -30,39 +30,28 @@ class BaoHu:
         # 预处理保护信号，统计保护信号表中一些字段的值的合集
         def prepare(self):
                 print('预处理保护信号')
-                with codecs.open('baohu.csv', 'r') as f:
-                        line = f.readline().replace('\n', '')
-                        fldNames = line.split(',')     
-                        stats = ['' for i in range(len(fldNames))]                   
-                        mzNo = fldNames.index('MINGZI')
-                        
-                        line = f.readline().replace('\n', '')
+                with codecs.open('baohu.txt', 'r') as f:
+                        f.readline()
+                        line = f.readline().replace(',\n', '')
+                        fldNames = [content for i, content in enumerate(line.split(',')) if i % 3 == 0]
+                        stats = ['' for i in range(len(fldNames))]
+                        line = f.readline().replace(',\n', '')
                         count=2
                         while line:
                                 flds = line.split(',')
-                                errFmt = ''
                                 if len(flds) != len(fldNames):
-                                        errFmt = 'Bad format: %s != %s, line:%s'%(len(flds),len(fldNames), count)
-                                        if len(flds) < len(fldNames): # 名字中有换行符导致
-                                                count += 1
-                                                breakLine = f.readline().replace('\n', '')
-                                                if breakLine:
-                                                        line += breakLine
-                                                        flds = line.split(',')
-                                        else: # 名字中有','导致
-                                                flds = self.modiFlds(fldNames, flds, mzNo)
-                                if len(errFmt)>0 and len(flds) != len(fldNames):
-                                                print(errFmt + '--------------err------------------')
-                                                
-                                if len(errFmt)==0 or len(flds) == len(fldNames):
-                                        self._baohus.append(flds)           
+                                        flds = self.modiFlds(line).split(',')
+
+                                if len(flds) != len(fldNames):
+                                        print('Bad format: %s != %s, line:%s' % (len(flds), len(fldNames), count))
+                                else:
                                         for i in range(5, len(fldNames)):
                                                 if i != 6 and i != 7:
                                                        if flds[i] in stats[i]:
                                                                pass
                                                        else:
                                                                stats[i] += (flds[i])+','
-                                line = f.readline().replace('\n', '')
+                                line = f.readline().replace(',\n', '')
                                 count += 1
                         for i in range(5, len(fldNames)):
                                 if i != 6 and i != 7:
@@ -73,38 +62,30 @@ class BaoHu:
         def getRdf(self):
                 print('读取源RDF表')
                 bjlxAll = (5,6,8,9,11,24) # 厂站 母线 开关 刀闸 变压器 馈线
-                count = 2
-                with codecs.open('rdflist.csv', 'r') as f:
-                        line = f.readline().replace('\n', '')
-                        fldNames = line.split(',')
+                count = 3
+                with codecs.open('rdflist.txt', 'r') as f:
+                        f.readline()
+                        line = f.readline().replace(',\n', '').upper()
+                        fldNames = [content for i, content in enumerate(line.split(',')) if i % 3 == 0]
                         bjlxNo = fldNames.index('BJTYPE')
                         bjidNo = fldNames.index('BJID')
                         rdfNo = fldNames.index('GISRDFID')
                         gismridNo = fldNames.index('GISMRID')
                                  
-                        line = f.readline().replace('\n', '')
+                        line = f.readline().replace(',\n', '')
                         while line:
-                                flds = line.split(',')
+                                flds = self.modiFlds(line).split(',')
                                 errFmt = ''
                                 if len(flds) != len(fldNames):
-                                        errFmt = 'Bad format: %s != %s, line:%s'%(len(flds),len(fldNames), count)
-                                        if len(flds) > len(fldNames): # GISMRID中有','导致
-                                                flds = self.modiFlds(fldNames, flds, gismridNo)
-                                if len(errFmt)>0 and len(flds) != len(fldNames):
-                                                print(errFmt + '--------------err------------------')
-
-                                bjlx = int(flds[bjlxNo])
-                                if bjlx in bjlxAll:
-                                        bjid = int(flds[bjidNo])
-                                        self._id_rdf[self.makeId(bjlx, 0, bjid)] = flds[rdfNo]
-                                
-                                line = f.readline().replace('\n', '')
+                                        print('Bad format: %s != %s, line:%s' % (len(flds), len(fldNames), count))
+                                else:
+                                        bjlx = int(flds[bjlxNo])
+                                        if bjlx in bjlxAll:
+                                                bjid = int(flds[bjidNo])
+                                                self._id_rdf[self.makeId(bjlx, 0, bjid)] = flds[rdfNo]
+                                line = f.readline().replace(',\n', '')
                                 count += 1
-                                #if count>100:
-                                #        break
-                        
                         f.close()
-                #print(self._id_rdf)
 
         # 创建保护信号
         def crtProtSig(self):
@@ -113,137 +94,138 @@ class BaoHu:
                 fldMap = {2:'MINGZI', 3:'BIANHAO', 4:'ID', 12:'DELAYTIME', 15:'GZFLAG', 16:'ALARMLEVEL'} # 800 - 1000e
                 pstMap = {1:1, 2:13, 3:14, 253:15, 254:16} # 1000e - 800 ProtectionSignalType
                 tarFldNos = range(1, 26)
-                line = ''
-                with codecs.open('baohu.csv', 'r') as f:
-                        line = f.readline().replace('\n', '')
-                        f.close()
-                fldNames = line.split(',')
-                bjlxNo = fldNames.index('BUJIANLEIXINGID')
-                bjidNo = fldNames.index('BUJIANID')
-                feedNo = fldNames.index('FEEDERID')
-                czidNo = fldNames.index('CHANGZHANID')
-                bhlxNo = fldNames.index('BAOHULEIXINGID')
-                for i in fldMap:
-                        fldMap[i] = fldNames.index(fldMap[i])
+                with codecs.open('baohu.txt', 'r') as f:
+                        f.readline()
+                        line = f.readline().replace(',\n', '').upper()
+                        fldNames = [content for i, content in enumerate(line.split(',')) if i % 3 == 0]
+                        bjlxNo = fldNames.index('BUJIANLEIXINGID')
+                        bjidNo = fldNames.index('BUJIANID')
+                        feedNo = fldNames.index('FEEDERID')
+                        czidNo = fldNames.index('CHANGZHANID')
+                        bhlxNo = fldNames.index('BAOHULEIXINGID')
+                        for i in fldMap:
+                                fldMap[i] = fldNames.index(fldMap[i])
 
-                dev_resId = feed_resId = cz_resId = {}
-                protDev = {} # 设备-保护设备
-                count=0
-                index = 1
-                self.lib.beginWrite(self.context.encode(), self.app.encode(), tab.encode())
-                for flds in self._baohus:
-                        if len(flds) != len(fldNames):
-                                print('Bad format: %s != %s, line:%s'%(len(flds),len(fldNames), count))
-                                                                
-                        devResId = 0
-                        staResId = 0
-                        feedResId = 0
-                        bjlx = int(flds[bjlxNo])
-                        bjid = int(flds[bjidNo])
-                        if bjlx > 0 and bjid > 0:                                        
-                                rid = self.makeId(bjlx, 0, bjid)
-                                if rid not in dev_resId:
-                                        if rid in self._id_rdf:
-                                                devrdf = self._id_rdf[rid]
-                                                if devrdf in self._tarRdf_id:
-                                                        devResId = self._tarRdf_id[devrdf]
-                                        dev_resId[rid] = devResId
+                        dev_resId = feed_resId = cz_resId = {}
+                        protDev = {} # 设备-保护设备
+                        index = 1
+                        self.lib.beginWrite(self.context.encode(), self.app.encode(), tab.encode())
+                        line = f.readline().replace(',\n', '')
+                        count = 3
+                        while line:
+                                flds = self.modiFlds(line).split(',')
+                                if len(flds) != len(fldNames):
+                                        print('Bad format: %s != %s, line:%s' % (len(flds), len(fldNames), count))
                                 else:
-                                        devResId = dev_resId[rid]
-
-                        feedid = int(flds[feedNo])
-                        if feedid > 0:
-                                if feedid not in feed_resId:
-                                        feedRid = self.makeId(24, 0, feedid) # 24 1000e馈线表
-                                        if feedRid in self._id_rdf:
-                                                feedrdf = self._id_rdf[feedRid]                                                        
-                                                if feedrdf in self._tarRdf_id:
-                                                        feedResId = self._tarRdf_id[feedrdf]
-                                        feed_resId[feedid] = feedResId
-                                else:
-                                        feedResId = feed_resId[feedid]
-                        
-                        czid = int(flds[czidNo])
-                        if czid > 0:                                        
-                                if czid not in cz_resId:
-                                        czRid = self.makeId(5, 0, czid) # 5 1000e厂站表
-                                        if czRid in self._id_rdf:
-                                                czrdf = self._id_rdf[czRid]
-                                                if czrdf in self._tarRdf_id:
-                                                        staResId = int(self._tarRdf_id[czrdf])
-                                        cz_resId[czid] = staResId
-                                else:
-                                        staResId = cz_resId[czid]
-
-                        if devResId > 0 or staResId > 0:
-                                houseResId = 0    
-                                tabNo = staResId >> 48 & 0xffff
-                                if tabNo == 13: # Substation_B
-                                        pass
-                                elif tabNo == 153: # DistributeStation_B
-                                        houseResId = staResId
+                                        devResId = 0
                                         staResId = 0
+                                        feedResId = 0
+                                        bjlx = int(flds[bjlxNo])
+                                        bjid = int(flds[bjidNo])
+                                        if bjlx > 0 and bjid > 0:
+                                                rid = self.makeId(bjlx, 0, bjid)
+                                                if rid not in dev_resId:
+                                                        if rid in self._id_rdf:
+                                                                devrdf = self._id_rdf[rid]
+                                                                if devrdf in self._tarRdf_id:
+                                                                        devResId = self._tarRdf_id[devrdf]
+                                                        dev_resId[rid] = devResId
+                                                else:
+                                                        devResId = dev_resId[rid]
 
-                                name = pathname = ''
-                                if devResId in self._devInfo:
-                                        feedResId = self._devInfo[devResId][0]
-                                if feedResId in self._feednames:
-                                        (staResId, sta, feed) = self._feednames[feedResId]
-                                        (name, pathname) = self.delDup(sta, feed, flds[fldMap[2]])
-                                        #pathname = '%s.%s.%s' % (''.join(sta), feed, flds[fldMap[2]])
-                                elif staResId in self._stanames:
-                                        (name, pathname) = self.delDup(sta, '', flds[fldMap[2]])
-                                        #pathname = '%s.%s' % (''.join(self._stanames[staResId]), flds[fldMap[2]])
-                                else:
-                                        pathname = '%s' % (flds[fldMap[2]])
+                                        feedid = int(flds[feedNo])
+                                        if feedid > 0:
+                                                if feedid not in feed_resId:
+                                                        feedRid = self.makeId(24, 0, feedid) # 24 1000e馈线表
+                                                        if feedRid in self._id_rdf:
+                                                                feedrdf = self._id_rdf[feedRid]
+                                                                if feedrdf in self._tarRdf_id:
+                                                                        feedResId = self._tarRdf_id[feedrdf]
+                                                        feed_resId[feedid] = feedResId
+                                                else:
+                                                        feedResId = feed_resId[feedid]
 
-                                tmpKey = 0
-                                if devResId > 0:
-                                        tmpKey = devResId
-                                elif staResId > 0:
-                                        tmpKey = staResId
-                                else:
-                                        tmpKey = houseResId
-                                
-                                protEquipId = 0      
-                                if tmpKey not in protDev:
-                                        protEquipId,data = self.crtProtEquip(len(self._protEquips)+1, devResId, staResId, feedResId, houseResId)
-                                        protDev[tmpKey] = protEquipId
-                                        self._protEquips.append(data)
-                                else:
-                                        protEquipId = protDev[tmpKey]
+                                        czid = int(flds[czidNo])
+                                        if czid > 0:
+                                                if czid not in cz_resId:
+                                                        czRid = self.makeId(5, 0, czid) # 5 1000e厂站表
+                                                        if czRid in self._id_rdf:
+                                                                czrdf = self._id_rdf[czRid]
+                                                                if czrdf in self._tarRdf_id:
+                                                                        staResId = int(self._tarRdf_id[czrdf])
+                                                        cz_resId[czid] = staResId
+                                                else:
+                                                        staResId = cz_resId[czid]
 
-                                record = u''
-                                for i in tarFldNos:
-                                        if i == 1:
-                                                record = '%s'%(self.makeId(38, 120, index)) # 38 保护信号表  120 ProtectionEquipmentStatus
-                                        elif i == 5: #pathname
-                                                record += ',%s' % (pathname)
-                                        elif i == 7: # Substation_ID
-                                                record += ',%s'%(staResId)
-                                        elif i == 10: # ProtectionEquipment_ID
-                                                record += ',%s'%(protEquipId)
-                                        elif i == 13: # ProtectionSignalType
-                                                tarSigType = 0
-                                                sigType = int(flds[bhlxNo])
-                                                if sigType in pstMap:
-                                                        tarSigType = pstMap[sigType]
-                                                record += ',%s'%(tarSigType)
-                                        elif i in (14, 17, 18, 19): # 14-ShowConditionEvent 17-ProtectionCatagory 18-EnableConditionEvent 19-EnableControl
-                                                record += ',1'
-                                        elif i == 21: # Feeder_ID
-                                                record += ',%s' % (feedResId)
-                                        elif i == 25: # DistributeStation_ID
-                                                record += ',%s'%(houseResId)
-                                        elif i in fldMap:
-                                                record += ',%s' % (flds[fldMap[i]])
-                                        else:
-                                                record += ','
-                                index += 1
-                                self.lib.addRecord(record.encode())
-                                
-                        count += 1
-                self.lib.endWrite()        
+                                        if devResId > 0 or staResId > 0:
+                                                houseResId = 0
+                                                tabNo = staResId >> 48 & 0xffff
+                                                if tabNo == 13: # Substation_B
+                                                        pass
+                                                elif tabNo == 153: # DistributeStation_B
+                                                        houseResId = staResId
+                                                        staResId = 0
+
+                                                name = pathname = ''
+                                                if devResId in self._devInfo:
+                                                        feedResId = self._devInfo[devResId][0]
+                                                if feedResId in self._feednames:
+                                                        (staResId, sta, feed) = self._feednames[feedResId]
+                                                        (name, pathname) = self.delDup(sta, feed, flds[fldMap[2]])
+                                                        #pathname = '%s.%s.%s' % (''.join(sta), feed, flds[fldMap[2]])
+                                                elif staResId in self._stanames:
+                                                        (name, pathname) = self.delDup(sta, '', flds[fldMap[2]])
+                                                        #pathname = '%s.%s' % (''.join(self._stanames[staResId]), flds[fldMap[2]])
+                                                else:
+                                                        pathname = '%s' % (flds[fldMap[2]])
+
+                                                tmpKey = 0
+                                                if devResId > 0:
+                                                        tmpKey = devResId
+                                                elif staResId > 0:
+                                                        tmpKey = staResId
+                                                else:
+                                                        tmpKey = houseResId
+
+                                                protEquipId = 0
+                                                if tmpKey not in protDev:
+                                                        protEquipId,data = self.crtProtEquip(len(self._protEquips)+1, devResId, staResId, feedResId, houseResId)
+                                                        protDev[tmpKey] = protEquipId
+                                                        self._protEquips.append(data)
+                                                else:
+                                                        protEquipId = protDev[tmpKey]
+
+                                                record = u''
+                                                for i in tarFldNos:
+                                                        if i == 1:
+                                                                record = '%s'%(self.makeId(38, 120, index)) # 38 保护信号表  120 ProtectionEquipmentStatus
+                                                        elif i == 5: #pathname
+                                                                record += ',%s' % (pathname)
+                                                        elif i == 7: # Substation_ID
+                                                                record += ',%s'%(staResId)
+                                                        elif i == 10: # ProtectionEquipment_ID
+                                                                record += ',%s'%(protEquipId)
+                                                        elif i == 13: # ProtectionSignalType
+                                                                tarSigType = 0
+                                                                sigType = int(flds[bhlxNo])
+                                                                if sigType in pstMap:
+                                                                        tarSigType = pstMap[sigType]
+                                                                record += ',%s'%(tarSigType)
+                                                        elif i in (14, 17, 18, 19): # 14-ShowConditionEvent 17-ProtectionCatagory 18-EnableConditionEvent 19-EnableControl
+                                                                record += ',1'
+                                                        elif i == 21: # Feeder_ID
+                                                                record += ',%s' % (feedResId)
+                                                        elif i == 25: # DistributeStation_ID
+                                                                record += ',%s'%(houseResId)
+                                                        elif i in fldMap:
+                                                                record += ',%s' % (flds[fldMap[i]])
+                                                        else:
+                                                                record += ','
+                                                index += 1
+                                                self.lib.addRecord(record.encode())
+                                count += 1
+                                line = f.readline().replace(',\n', '')
+                        self.lib.endWrite()
 
         # 写入保护设备
         def writeProtEquip(self):
@@ -398,11 +380,17 @@ class BaoHu:
                                 count += 1
                         f.close()
 
-        # 数据字段和字段模式个数不匹配的纠正
-        def modiFlds(self, fldNames, flds, badFldNo):
-                badLast = len(flds)- (len(fldNames) - badFldNo - 1)
-                content = flds[badFldNo : badLast]
-                return flds[:badFldNo] + [u'、'.join(content)] + flds[badLast:]
+        # 删除字段中的','
+        def modiFlds(self, line):
+                if '"' in line:
+                        tmp = []
+                        for i, content in enumerate(line.split('"')):
+                                if i % 2 == 0:
+                                        tmp.append(content)
+                                else:
+                                        tmp.append(content.replace(',', u'、'))
+                        return ''.join(tmp)
+                return line
 
         # 去重
         def delDup(self, sta, feed, name):
@@ -436,8 +424,9 @@ class BaoHu:
 
         
 if __name__ == '__main__':
+        print('begin------' + ctime())
         b = BaoHu()
-        b.prepare()
+        # b.prepare()
         b.getStaNames()
         b.getFeedNames()
         for tab in ('Breaker_B', 'Disconnector_B', 'BusbarSection_B', 'CompositeSwitch_B'):
@@ -446,3 +435,4 @@ if __name__ == '__main__':
         b.getRdf()
         b.crtProtSig()
         b.writeProtEquip()
+        print('end------' + ctime())
