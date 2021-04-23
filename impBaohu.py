@@ -266,6 +266,11 @@ class BaoHu:
                                 record += ',%s'%(2814749767106565) # 10kV
                         elif i == 11: # MasterProtectEquipment_ID
                                 record += ',%s'%(devResId)
+                        elif i == 12: # OperateBreaker_ID
+                                if (devResId >> 48 & 0xFFFF) == 16: # 16 开关表
+                                        record += ',%s'%(devResId)
+                                else:
+                                        record += ','
                         elif i == 13: # Feeder_ID
                                 record += ',%s'%(feedResId)
                         elif i == 15: # DistributeStation_ID
